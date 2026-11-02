@@ -95,3 +95,25 @@ def test_concurrent_holds_cannot_double_book() -> None:
     with ThreadPoolExecutor(max_workers=12) as executor:
         results = list(executor.map(attempt, range(30)))
     assert sum(results) == 1
+
+
+def test_idempotent_hold_returns_one_booking() -> None:
+    service = BookingService()
+    first = service.place_hold("CAR-1", START, END, NOW, "request-123")
+    repeat = service.place_hold("CAR-1", START, END, NOW, "request-123")
+    assert first.booking_id == repeat.booking_id
+
+
+def test_idempotency_key_cannot_be_reused_with_different_payload() -> None:
+    service = BookingService()
+    service.place_hold("CAR-1", START, END, NOW, "request-123")
+    with pytest.raises(BookingError, match="different request"):
+        service.place_hold("CAR-2", START, END, NOW, "request-123")
+
+
+def test_repeated_confirmation_has_no_new_business_effect() -> None:
+    service = BookingService()
+    hold = service.place_hold("CAR-1", START, END, NOW, "request-123")
+    first = service.confirm(hold.booking_id, NOW, True)
+    second = service.confirm(hold.booking_id, NOW + timedelta(hours=2), True)
+    assert first == second

@@ -42,12 +42,27 @@ class BookingService:
     def __init__(self) -> None:
         self._lock = RLock()
         self._bookings: dict[str, Booking] = {}
+        self._hold_requests: dict[str, tuple[tuple[str, datetime, datetime], str]] = {}
 
-    def place_hold(self, car_id: str, starts_at: datetime, ends_at: datetime, now: datetime) -> Booking:
+    def place_hold(
+        self,
+        car_id: str,
+        starts_at: datetime,
+        ends_at: datetime,
+        now: datetime,
+        idempotency_key: str | None = None,
+    ) -> Booking:
         _require_aware(starts_at, ends_at, now)
         if not car_id.strip() or starts_at >= ends_at:
             raise BookingError("Car ID and a valid rental interval are required")
+        if idempotency_key is not None and not idempotency_key.strip():
+            raise BookingError("Idempotency key cannot be empty")
         with self._lock:
+            if idempotency_key is not None and idempotency_key in self._hold_requests:
+                original_payload, original_id = self._hold_requests[idempotency_key]
+                if original_payload != (car_id, starts_at, ends_at):
+                    raise BookingError("Idempotency key reused with different request")
+                return self._bookings[original_id]
             for previous in self._bookings.values():
                 active = previous.status == "CONFIRMED" or (
                     previous.status == "HELD" and now < previous.expires_at
@@ -63,6 +78,8 @@ class BookingService:
                 booking_id, car_id, starts_at, ends_at, now + timedelta(minutes=15), "HELD"
             )
             self._bookings[booking_id] = booking
+            if idempotency_key is not None:
+                self._hold_requests[idempotency_key] = ((car_id, starts_at, ends_at), booking_id)
             return booking
 
     def confirm(self, booking_id: str, now: datetime, payment_succeeded: bool) -> Booking:
