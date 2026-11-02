@@ -92,7 +92,7 @@ class BookingService:
                 raise BookingError("Booking is no longer held")
             if not payment_succeeded:
                 raise BookingError("Successful payment is required")
-            if now > booking.expires_at:
+            if now >= booking.expires_at:
                 self._bookings[booking_id] = replace(booking, status="EXPIRED")
                 raise BookingError("Hold already expired")
             confirmed = replace(booking, status="CONFIRMED")
