@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "driveeasy-sdlc"
-version = "0.1.0"
+version = "0.1.1"
 description = "Educational booking rules and GitFlow release simulation for RPIS lab 3"
 requires-python = ">=3.11"
 dependencies = []

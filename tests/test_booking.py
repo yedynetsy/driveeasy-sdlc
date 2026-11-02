@@ -117,3 +117,11 @@ def test_repeated_confirmation_has_no_new_business_effect() -> None:
     first = service.confirm(hold.booking_id, NOW, True)
     second = service.confirm(hold.booking_id, NOW + timedelta(hours=2), True)
     assert first == second
+
+
+def test_hotfix_exact_expiration_boundary_cannot_confirm() -> None:
+    service = BookingService()
+    hold = service.place_hold("CAR-1", START, END, NOW)
+    with pytest.raises(BookingError, match="expired"):
+        service.confirm(hold.booking_id, hold.expires_at, True)
+    assert service.get(hold.booking_id).status == "EXPIRED"
